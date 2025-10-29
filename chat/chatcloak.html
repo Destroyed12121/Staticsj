@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-Z14CF8WQ1J"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-Z14CF8WQ1J');
+    </script>
+    <title>Chatcloak</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="assets/styles/css/global.min.css">
+    <link rel="stylesheet" href="assets/font-awesome/css/all.css">
+
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #36393F;
+            color: white;
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        widgetbot {
+            width: 100%;
+            height: 90vh;
+        }
+        #banner {
+            width: 100%;
+            height: 5vh;
+            background: #23272A;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+        object {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <object id="mainContent" data='data:text/html;charset=utf-8,<!DOCTYPE html><html lang="en"><body><div id="mainContent"><widgetbot server="1334648765679800442" channel="1334648766292164731" shard="https://e.widgetbot.io" width="100%" height="90vh"></widgetbot></div><script src="https://cdn.jsdelivr.net/npm/@widgetbot/html-embed"></script></body></html>' height="100%" width="100%"></object>
+    <object id="loading" data="../loading.html" height="100%" width="100%"></object>
+    <script src="../sidebar/sidebar.js" defer></script>
+
+    <script>
+        document.querySelector('#mainContent').addEventListener('load', function() {
+            const loadingElement = document.getElementById('loading');
+            setTimeout(() => {
+                loadingElement.style.transition = 'opacity 0.5s ease';
+                loadingElement.style.opacity = '0';
+                setTimeout(() => {
+                    loadingElement.style.display = 'none';
+                }, 500);
+            }, 1500);
+        });
+
+        document.querySelector('#mainContent').addEventListener('error', function() {
+            const loadingElement = document.getElementById('loading');
+            loadingElement.style.transition = 'opacity 0.5s ease';
+            loadingElement.style.opacity = '1';
+            loadingElement.style.display = 'block';
+        });
+    </script>
+
+    <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'93a2265e39febfd3',t:'MTc0NjMwMDM4NS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+</body>
+</html>

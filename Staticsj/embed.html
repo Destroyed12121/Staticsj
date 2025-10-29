@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Embed</title>
+    <!-- This file is used as fallback player for Music.html -->
+    <style>
+        :root { --bg: #121212; --primary: #bb86fc; --text-secondary: #a0a0a0; --border-color: #333;}
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; overflow: hidden; background: var(--bg); }
+        
+        #iframe-container {
+            width: 100%; height: 100%; position: absolute; top: 0; left: 0;
+            opacity: 0; transition: opacity 0.5s ease-in-out; z-index: 1;
+        }
+
+        #embed-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: transparent;
+        }
+        
+        .message-container {
+            display: flex; align-items: center; justify-content: center; height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: #e0e0e0; text-align: center; position: relative; z-index: 10;
+        }
+        .message-content { max-width: 80%; }
+        .message-content h1 { font-size: 2rem; color: var(--primary); margin-bottom: 1rem; }
+        .message-content p { color: #a0a0a0; font-family: monospace; word-break: break-all; }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1); border-left-color: var(--primary);
+            border-radius: 50%; width: 50px; height: 50px;
+            animation: spin 1s linear infinite; margin: 0 auto 1.5rem;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        #skip-btn {
+            margin-top: 1.5rem; padding: 0.5rem 1rem; background: transparent; color: var(--text-secondary);
+            border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer;
+            transition: all 0.2s ease; display: none;
+        }
+        #skip-btn:hover { border-color: var(--primary); color: var(--primary); }
+    </style>
+    <script src="./prxxry.config.js"></script>
+    <script src="./B/index.js"></script>
+    <script src="./JS/scramjet.all.js"></script>
+</head>
+<body>
+    <div id="loading" class="message-container">
+        <div class="message-content">
+            <div class="spinner"></div>
+            <h1 id="loading-title">Connecting</h1>
+            <p id="loading-url">Initializing sj</p>
+            <button id="skip-btn">Skip</button>
+        </div>
+    </div>
+    <div id="error" class="message-container" style="display: none;">
+        <div class="message-content">
+            <h1>Connection Error</h1>
+            <p id="error-message">An error occurred.</p>
+        </div>
+    </div>
+    <div id="iframe-container" style="opacity: 0;"></div>
+
+    <script>
+        console.log("embed.html script starting...");
+        const loadingContainer = document.getElementById('loading');
+        const loadingTitle = document.getElementById('loading-title');
+        const loadingUrl = document.getElementById('loading-url');
+        const errorContainer = document.getElementById('error');
+        const errorMessage = document.getElementById('error-message');
+        const iframeContainer = document.getElementById('iframe-container');
+        const skipBtn = document.getElementById('skip-btn');
+        
+        let loadingTimeout = null;
+        let skipButtonTimeout = null;
+
+        function showError(message) {
+            if (loadingTimeout) clearTimeout(loadingTimeout);
+            if (skipButtonTimeout) clearTimeout(skipButtonTimeout);
+            loadingContainer.style.display = 'none';
+            iframeContainer.innerHTML = '';
+            errorMessage.textContent = message;
+            errorContainer.style.display = 'flex';
+        }
+        
+        function showContent() {
+            if (loadingTimeout) clearTimeout(loadingTimeout);
+            if (skipButtonTimeout) clearTimeout(skipButtonTimeout);
+            loadingContainer.style.display = 'none';
+            iframeContainer.style.opacity = '1';
+        }
+
+        async function init() {
+            console.log("embed.html init() function called");
+            const urlParams = new URLSearchParams(window.location.search);
+            const shouldSkip = urlParams.has('skip');
+            const targetUrl = window.location.hash.substring(1);
+            const currentPath = window.location.pathname;
+            const basePath = currentPath.substring(0, currentPath.lastIndexOf('/') + 1);
+
+            console.log(`Target URL: ${targetUrl}`);
+            console.log(`Should skip: ${shouldSkip}`);
+
+            if (!targetUrl) {
+                console.log("No target URL provided");
+                showError("No URL was provided. Please specify a URL in the format #<your_url>.");
+                return;
+            }
+
+            if (shouldSkip) {
+                loadingContainer.style.display = 'none';
+                iframeContainer.style.opacity = '1';
+            }
+
+            try {
+                console.log("Initializing ScramjetController...");
+                const { ScramjetController } = $scramjetLoadController();
+                const scramjet = new ScramjetController({
+                    prefix: `${basePath}scramjet/`,
+                    files: {
+                        wasm: `${basePath}JS/scramjet.wasm.wasm`,
+                        all: `${basePath}JS/scramjet.all.js`,
+                        sync: `${basePath}JS/scramjet.sync.js`,
+                    },
+                });
+                console.log("Calling scramjet.init()...");
+                await scramjet.init();
+                console.log("Registering service worker...");
+                await navigator.serviceWorker.register(`${basePath}sw.js`, { scope: basePath });
+                console.log("Setting up BareMux connection...");
+                const connection = new BareMux.BareMuxConnection(`${basePath}B/worker.js`);
+                connection.setTransport(`${basePath}Ep/index.mjs`, [{ wisp: _CONFIG.wispurl }]);
+                
+                if (!shouldSkip) {
+                    loadingTitle.textContent = 'Loading';
+                    loadingUrl.textContent = `Please wait while we connect you to: ${targetUrl}`;
+                }
+
+                console.log("Creating scramjet frame...");
+                const frame = scramjet.createFrame();
+                frame.frame.id = 'embed-frame';
+                frame.frame.referrerPolicy = 'strict-origin-when-cross-origin';
+
+                if (!shouldSkip) {
+                    console.log("Setting up loading timeouts and event listeners...");
+                        skipButtonTimeout = setTimeout(() => {
+                            skipBtn.style.display = 'inline-block';
+                        }, 5000);
+    
+                        skipBtn.addEventListener('click', showContent);
+    
+                        // Use multiple event listeners for better reliability
+                        frame.frame.addEventListener('load', () => {
+                            console.log("Frame loaded successfully");
+                            showContent();
+                        });
+    
+                        frame.frame.addEventListener('error', () => {
+                            console.log("Frame error occurred");
+                            showError(`An error occurred while trying to load: ${targetUrl}. Please check the URL and try again.`);
+                        });
+    
+                        loadingTimeout = setTimeout(() => {
+                            console.log("Loading timeout reached");
+                            showError(`Timeout: The content took too long to load. You can try skipping next time.`);
+                        }, 30000);
+                }
+
+
+                console.log("Appending frame to container and navigating to target URL...");
+                iframeContainer.appendChild(frame.frame);
+                frame.go(targetUrl);
+                console.log("Frame navigation initiated");
+                
+            } catch (err) {
+                console.error("Initialization Error:", err);
+                showError(`A critical error occurred during initialization: ${err.message}.`);
+            }
+        }
+
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Domain Clone Finder</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>Domain Clone Finder</h1>
+    <nav>
+      <a href="/">Home</a>
+      <a href="docs.html">Documentation</a>
+      <a href="help.html">Help</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="form-container">
+      <h2>Find Domains for a URL</h2>
+      <form id="domainForm">
+        <label for="url">Enter URL, IPv4 Address, IPv6 Address, IPv4 URL, or IPv6 URL:</label>
+        <input type="text" id="url" name="url" placeholder="https://example.com" required>
+        <button type="submit">Get Domains</button>
+      </form>
+      <div id="result">
+        <h3>Results:</h3>
+        <p id="note">Note: This may not work for every URL, and some domains may not be accessible.</p>
+        <ul id="output">
+</ul>
+      </div>
+    </section>
+
+    <section class="process-info">
+      <h3>How It Works</h3>
+      <p>This tool takes the URL you provide and extracts the IP address associated with it. Then, it looks up all other domains hosted on the same IP. These may include related websites, cloned domains, or even different services provided by the same server.</p>
+    </section>
+  </main>
+  <div id="loadingScreen" style="display: none;">
+  <div class="spinner"></div>
+</div>
+  <script src="script.js"></script>
+</body>
+</html>
