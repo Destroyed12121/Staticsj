@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>New Tab</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif;
+      background: #0d0d0d;
+      color: #eaeaea;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      text-align: center;
+      overflow: hidden;
+    }
+
+    h1.clock {
+      font-size: 3rem;
+      margin-bottom: 10px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      animation: fadeIn 1s ease-in-out;
+    }
+
+    .search-container {
+      display: flex;
+      align-items: center;
+      background: #111;
+      padding: 12px 18px;
+      border-radius: 2rem;
+      box-shadow: 0 6px 30px rgba(0, 0, 0, 0.7);
+      animation: popIn 0.6s ease;
+      width: 550px;
+      max-width: 90%;
+    }
+
+    .search-container input {
+      flex: 1;
+      background: none;
+      border: none;
+      outline: none;
+      color: #fff;
+      font-size: 1rem;
+      padding: 5px;
+    }
+
+    .search-container select {
+      background: #1a1a1a;
+      border: none;
+      color: #fff;
+      border-radius: 0.5rem;
+      padding: 6px 10px;
+      margin-left: 10px;
+      cursor: pointer;
+      transition: background .2s;
+    }
+
+    .search-container select:hover {
+      background: #2a2a2a;
+    }
+
+    .icons {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+      gap: 20px;
+      margin-top: 30px;
+      max-width: 400px;
+    }
+
+    .shortcut-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-decoration: none;
+      color: #eaeaea;
+      width: 80px;
+    }
+
+    .icon {
+      width: 65px;
+      height: 65px;
+      background: #1a1a1a;
+      border-radius: 1rem;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+      transition: all 0.25s ease;
+      margin-bottom: 8px;
+    }
+
+    .shortcut-item:hover .icon {
+      transform: translateY(-4px) scale(1.1);
+      background: #2a2a2a;
+      cursor: pointer;
+    }
+
+    .shortcut-label {
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.7);
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      width: 100%;
+      margin-top: 0px;
+      transition: color 0.2s;
+    }
+
+    .shortcut-item:hover .shortcut-label {
+      color: #fff;
+    }
+
+    .icon img {
+      width: 28px;
+      height: 28px;
+      filter: brightness(0) invert(1);
+    }
+
+    .extras {
+      margin-top: 25px;
+      font-size: 1rem;
+      color: #aaa;
+    }
+
+    .footer {
+      position: absolute;
+      bottom: 15px;
+      font-size: 0.9rem;
+      color: #888;
+    }
+
+    .footer span.heart {
+      color: #e63946;
+      font-size: 1.1rem;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes popIn {
+      0% {
+        transform: scale(0.8);
+        opacity: 0;
+      }
+
+      100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+
+    .footer:hover {
+      color: #fff;
+      text-shadow: 0 0 10px #e63946;
+      cursor: pointer;
+    }
+
+    /* Loading Spinner */
+    .loading-spinner-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(13, 13, 13, 0.8);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      backdrop-filter: blur(4px);
+    }
+
+    .loading-spinner-overlay.show {
+      display: flex;
+    }
+
+    .loading-spinner {
+      width: 60px;
+      height: 60px;
+      border: 4px solid #333;
+      border-top: 4px solid #eaeaea;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Loading Spinner -->
+  <div class="loading-spinner-overlay" id="loadingSpinner">
+    <div class="loading-spinner"></div>
+  </div>
+
+  <h1 class="clock">00:00:00</h1>
+
+  <form id="searchForm" class="search-container">
+    <input type="text" id="searchInput" placeholder="Search the web..." autocomplete="off">
+
+    <!-- THE CHANGE IS HERE: The "selected" attribute was moved -->
+    <select id="engineSelect">
+      <option value="https://search.brave.com/search?q=" selected>Brave Search</option>
+      <option value="https://duckduckgo.com/?q=">DuckDuckGo</option>
+      <option value="https://www.google.com/search?safe=active&q=">Google</option>
+      <option value="https://www.bing.com/search?q=">Bing</option>
+    </select>
+  </form>
+
+  <div class="icons">
+    <div class="shortcut-item">
+      <a href="https://youtube.com" class="icon"><img
+          src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/youtube.svg" alt="YouTube"></a>
+      <span class="shortcut-label">YouTube</span>
+    </div>
+    <div class="shortcut-item">
+      <a href="https://github.com" class="icon"><img
+          src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/github.svg" alt="GitHub"></a>
+      <span class="shortcut-label">GitHub</span>
+    </div>
+    <div class="shortcut-item">
+      <a href="https://mail.google.com" class="icon"><img
+          src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/gmail.svg" alt="Gmail"></a>
+      <span class="shortcut-label">Gmail</span>
+    </div>
+    <div class="shortcut-item">
+      <a href="https://twitter.com" class="icon"><img
+          src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/x.svg" alt="Twitter/X"></a>
+      <span class="shortcut-label">Twitter</span>
+    </div>
+    <div class="shortcut-item">
+      <a href="https://nextjs.org" class="icon"><img
+          src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/nextdotjs.svg" alt="Next.js"></a>
+      <span class="shortcut-label">Next.js</span>
+    </div>
+    <div class="shortcut-item">
+      <a href="https://vercel.com" class="icon"><img
+          src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/vercel.svg" alt="Vercel"></a>
+      <span class="shortcut-label">Vercel</span>
+    </div>
+    <div class="shortcut-item">
+      <a href="https://openai.com" class="icon"><img
+          src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/openai.svg" alt="OpenAI"></a>
+      <span class="shortcut-label">OpenAI</span>
+    </div>
+    <div class="shortcut-item">
+      <a href="https://discord.com" class="icon"><img
+          src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/discord.svg" alt="Discord"></a>
+      <span class="shortcut-label">Discord</span>
+    </div>
+    <div class="shortcut-item">
+      <a href="https://spotify.com" class="icon"><img
+          src="https://cdn.jsdelivr.net/gh/simple-icons/simple-icons/icons/spotify.svg" alt="Spotify"></a>
+      <span class="shortcut-label">Spotify</span>
+    </div>
+    <div class="shortcut-item">
+      <div class="icon add-new" id="addNewShortcut">
+        <span style="font-size: 2rem; color: #fff;">+</span>
+      </div>
+      <span class="shortcut-label">Add New</span>
+    </div>
+  </div>
+
+  <div class="extras">
+    <span id="quote">“Loading a fun fact...”</span>
+  </div>
+
+
+
+  <script>
+    function updateClock() {
+      const now = new Date();
+      const time = now.toLocaleTimeString();
+      document.querySelector('.clock').textContent = time;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    document.getElementById("searchForm").addEventListener("submit", function (e) {
+      e.preventDefault();
+      const query = document.getElementById("searchInput").value.trim();
+      const engine = document.getElementById("engineSelect").value;
+      const urlToOpen = engine + encodeURIComponent(query);
+
+      if (query && window.parent) {
+        // Show loading spinner
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        if (loadingSpinner) {
+          loadingSpinner.classList.add('show');
+          loadingSpinner.offsetHeight; // Force reflow
+        }
+
+        requestAnimationFrame(() => {
+          window.parent.postMessage({ type: 'navigate', url: urlToOpen }, '*');
+        });
+      }
+    });
+
+    const quotes = [
+      "“Code is like humor. When you have to explain it, it’s bad.”",
+      "“Programs must be written for people to read.”",
+      "“Dark mode saves eyes, trust the process.”",
+      "“When in doubt, console.log it.”",
+      "“It's not a bug, it's an undocumented feature.”",
+      "“Have you tried turning it off and on again?”",
+
+      "“The only way to do great work is to love what you do.”",
+      "“The journey of a thousand miles begins with a single step.”",
+      "“Strive not to be a success, but rather to be of value.”",
+      "“Believe you can and you're halfway there.”",
+      "“The future belongs to those who believe in the beauty of their dreams.”",
+      "“The best time to plant a tree was 20 years ago. The second best time is now.”",
+      "“You must be the change you wish to see in the world.”",
+      "“In three words I can sum up everything I've learned about life: it goes on.”",
+      "“The only thing we have to fear is fear itself.”",
+      "“To be yourself in a world that is constantly trying to make you something else is the greatest accomplishment.”",
+
+      "“The mind is everything. What you think you become.”",
+      "“The greatest glory in living lies not in never falling, but in rising every time we fall.”",
+      "“Life is what happens when you're busy making other plans.”",
+      "“That which does not kill us makes us stronger.”",
+      "“The only true wisdom is in knowing you know nothing.”",
+      "“It does not matter how slowly you go as long as you do not stop.”",
+      "“Everything you can imagine is real.”",
+      "“Success is not final, failure is not fatal: it is the courage to continue that counts.”",
+      "“Dream big and dare to fail.”",
+      "“Act as if what you do makes a difference. It does.”",
+      "“The only impossible journey is the one you never begin.”"
+    ];
+
+    document.getElementById("quote").textContent = quotes[Math.floor(Math.random() * quotes.length)];
+
+    document.querySelectorAll('.shortcut-item > a.icon').forEach(link => {
+      // The 'add-new' icon doesn't have an 'a' tag, so this check is implicitly handled
+      // by the selector '.shortcut-item > a.icon'
+      link.addEventListener('click', function (event) {
+        event.preventDefault();
+        const urlToOpen = this.href;
+        if (window.parent) {
+          // Show loading spinner
+          const loadingSpinner = document.getElementById('loadingSpinner');
+          if (loadingSpinner) {
+            loadingSpinner.classList.add('show');
+            loadingSpinner.offsetHeight; // Force reflow
+          }
+
+          requestAnimationFrame(() => {
+            window.parent.postMessage({ type: 'navigate', url: urlToOpen }, '*');
+          });
+        }
+      });
+    });
+
+    // Load custom shortcuts
+    function loadShortcuts() {
+      const shortcuts = JSON.parse(localStorage.getItem('shortcuts') || '[]');
+      const container = document.querySelector('.icons');
+      const addButton = document.getElementById('addNewShortcut');
+
+      // Remove existing custom shortcuts to avoid duplicates if re-running
+      document.querySelectorAll('.shortcut-item.custom-shortcut').forEach(el => el.remove());
+
+      const icons = ['fa-link', 'fa-bookmark', 'fa-star'];
+
+      shortcuts.forEach(shortcut => {
+        const randomIcon = icons[Math.floor(Math.random() * icons.length)];
+
+        const div = document.createElement('div');
+        div.className = 'shortcut-item custom-shortcut';
+
+        div.innerHTML = `
+          <a href="${shortcut.url}" class="icon">
+            <i class="fa-solid ${randomIcon}" style="font-size: 28px; color: #fff;"></i>
+          </a>
+          <span class="shortcut-label">${shortcut.name}</span>
+        `;
+
+        const a = div.querySelector('a');
+        a.addEventListener('click', function (event) {
+          event.preventDefault();
+          const urlToOpen = this.href;
+          if (window.parent) {
+            // Show loading spinner
+            const loadingSpinner = document.getElementById('loadingSpinner');
+            if (loadingSpinner) {
+              loadingSpinner.classList.add('show');
+              loadingSpinner.offsetHeight; // Force reflow
+            }
+
+            requestAnimationFrame(() => {
+              window.parent.postMessage({ type: 'navigate', url: urlToOpen }, '*');
+            });
+          }
+        });
+
+        // Insert before the "Add New" button container
+        container.insertBefore(div, addButton.parentNode);
+      });
+    }
+
+    document.getElementById('addNewShortcut').addEventListener('click', () => {
+      // Use browser window notifications/prompts as requested
+      // Since we are in an iframe, we might need to use standard prompt
+      const name = prompt("Enter shortcut name:");
+      if (!name) return;
+
+      let url = prompt("Enter shortcut URL:");
+      if (!url) return;
+
+      if (!url.startsWith('http')) {
+        url = 'https://' + url;
+      }
+
+      const shortcuts = JSON.parse(localStorage.getItem('shortcuts') || '[]');
+      shortcuts.push({ name, url });
+      localStorage.setItem('shortcuts', JSON.stringify(shortcuts));
+
+      loadShortcuts();
+    });
+
+    loadShortcuts();
+  </script>
+</body>
+
+</html>
