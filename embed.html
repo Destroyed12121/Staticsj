@@ -3,6 +3,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Embed</title>
+    <link rel="icon" href="data:,">
 
     <!-- This file is used as fallback player for Music.html -->
     <style>
@@ -46,8 +47,9 @@
         #skip-btn:hover { border-color: var(--primary); color: var(--primary); }
     </style>
     <script src="./prxxry.config.js"></script>
-    <script src="./B/index.js"></script>
-    <script src="./JS/scramjet.all.js"></script>
+    <script src="./JS/scramjet.js"></script>
+    <script src="./JS/controller.api.js"></script>
+    <script src="./Ep/index.js"></script>
 </head>
 <body>
     <div id="loading" class="message-container">
@@ -148,37 +150,45 @@
             }
 
             try {
-                console.log("Initializing ScramjetController...");
-                const { ScramjetController } = $scramjetLoadController();
-                const scramjet = new ScramjetController({
-                    prefix: basePath + 'JS/scramjet/',
-                    files: {
-                        wasm: basePath + 'JS/scramjet.wasm.wasm',
-                        all: basePath + 'JS/scramjet.all.js',
-                        sync: basePath + 'JS/scramjet.sync.js',
-                    },
-                });
-                console.log("Calling scramjet.init()...");
-                await scramjet.init();
                 console.log("Registering service worker...");
-                // Dynamic path calculation for subfolder hosting compatibility
-                await navigator.serviceWorker.register(basePath + 'sw.js', { scope: basePath });
-                navigator.serviceWorker.ready.then(reg => reg.active?.postMessage({ type: 'config', wispurl: _CONFIG.wispurl }));
-                console.log("Setting up BareMux connection...");
-                 const connection = new BareMux.BareMuxConnection(`${basePath}B/worker.js`);
-                 await connection.setTransport(`${basePath}Ep/index.mjs`, [{ wisp: _CONFIG.wispurl }]);
-                 console.log("BareMux connection established successfully");
-                
+                await navigator.serviceWorker.register(`${basePath}sw.js`, {
+                    scope: basePath,
+                    type: 'classic',
+                    updateViaCache: 'none'
+                });
+                const registration = await navigator.serviceWorker.ready;
+                const serviceworker = registration.active || navigator.serviceWorker.controller;
+                if (!serviceworker) {
+                    throw new Error("The proxy service worker is not active. Reload the page and try again.");
+                }
+
+                console.log("Initializing Scramjet controller...");
+                const wispUrl = localStorage.getItem("proxServer") || _CONFIG.wispurl;
+                const Transport = window.EpoxyTransport?.default || window.EpoxyTransport;
+                const controller = new $scramjetController.Controller({
+                    serviceworker,
+                    transport: new Transport({ wisp: wispUrl }),
+                    config: {
+                        prefix: basePath + 'scramjet/',
+                        scramjetPath: basePath + 'JS/scramjet.js',
+                        injectPath: basePath + 'JS/controller.inject.js',
+                        wasmPath: basePath + 'JS/scramjet.wasm.wasm',
+                        virtualWasmPath: 'scramjet.wasm.js'
+                    }
+                });
+                await controller.wait();
+
                 if (!shouldSkip) {
                     loadingTitle.textContent = 'Loading';
                     loadingUrl.textContent = `Please wait while we connect you to: ${validatedUrl}`;
                 }
 
                 console.log("Creating scramjet frame...");
-                 const frame = scramjet.createFrame();
-                 frame.frame.id = 'embed-frame';
-                 frame.frame.referrerPolicy = 'strict-origin-when-cross-origin';
-                 console.log("Scramjet frame created successfully");
+                const element = document.createElement('iframe');
+                element.id = 'embed-frame';
+                element.referrerPolicy = 'strict-origin-when-cross-origin';
+                const frame = controller.createFrame(element);
+                console.log("Scramjet frame created successfully");
 
                 if (!shouldSkip) {
                     console.log("Setting up loading timeouts and event listeners...");
@@ -192,12 +202,13 @@
                         });
 
                         // Use load event listener for iframe readiness
-                        frame.frame.addEventListener('load', () => {
+                        element.addEventListener('load', () => {
+                            if (!element.src || element.src === 'about:blank') return;
                             console.log("Frame load event fired");
                             showContent();
                         });
 
-                        frame.frame.addEventListener('error', (event) => {
+                        element.addEventListener('error', (event) => {
                             console.log("Frame error occurred", event);
                             showError(`An error occurred while trying to load: ${validatedUrl}. Please check the URL and try again.`);
                         });
@@ -205,7 +216,7 @@
                         // Add timeout with better error handling
                         loadingTimeout = setTimeout(() => {
                             console.log("Loading timeout reached");
-                            if (!frame.frame.contentWindow || frame.frame.contentWindow.location.href === 'about:blank') {
+                            if (!element.contentWindow || element.contentWindow.location.href === 'about:blank') {
                                 showError(`Timeout: The content took too long to load. You can try skipping next time.`);
                             }
                         }, 45000);
@@ -213,7 +224,7 @@
 
 
                 console.log("Appending frame to container and navigating to target URL...");
-                iframeContainer.appendChild(frame.frame);
+                iframeContainer.appendChild(element);
                 console.log("Frame appended to container");
 
                 try {

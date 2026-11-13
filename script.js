@@ -1,11 +1,3 @@
-if (typeof BareMux === 'undefined') {
-    BareMux = {
-        BareMuxConnection: class {
-            constructor() { }
-            setTransport() { }
-        }
-    };
-}
 // Wrap everything in DOMContentLoaded to ensure DOM is ready
 const DEFAULT_SEARCH_ENGINES = {
     brave: { name: 'Brave Search', url: 'https://search.brave.com/search?q=' },
@@ -15,44 +7,60 @@ const DEFAULT_SEARCH_ENGINES = {
 };
 
 // Declare scramjet globally so it can be used by createTab and other functions
-let scramjet;
+let controller = null;
+let controllerReady = null;
+let wispTransport = null;
 
-document.addEventListener('DOMContentLoaded', async function () {
-    const basePath = location.pathname.replace(/[^/]*$/, '');
+function getBasePath() {
+    return location.pathname.replace(/[^/]*$/, '');
+}
 
-    const { ScramjetController } = $scramjetLoadController();
+function getWispUrl() {
+    return localStorage.getItem("proxServer") || (_CONFIG && _CONFIG.wispurl) || "wss://wisp.rhw.one/wisp/";
+}
 
-    // Configure Scramjet controller with the correct prefix
-    scramjet = new ScramjetController({
-        prefix: basePath + 'JS/scramjet/',
-        files: {
-            wasm: basePath + 'JS/scramjet.wasm.wasm',
-            all: basePath + 'JS/scramjet.all.js',
-            sync: basePath + 'JS/scramjet.sync.js',
-        },
+function createTransport(wispUrl) {
+    const Transport = window.EpoxyTransport?.default || window.EpoxyTransport;
+    return new Transport({ wisp: wispUrl });
+}
+
+async function initScramjet() {
+    const basePath = getBasePath();
+
+    await navigator.serviceWorker.register(`${basePath}sw.js`, {
+        scope: basePath,
+        type: 'classic',
+        updateViaCache: 'none'
+    });
+    const registration = await navigator.serviceWorker.ready;
+    const serviceworker = registration.active || navigator.serviceWorker.controller;
+
+    if (!serviceworker) {
+        throw new Error('The proxy service worker is not active. Reload the page and try again.');
+    }
+
+    wispTransport = createTransport(getWispUrl());
+    controller = new $scramjetController.Controller({
+        serviceworker,
+        transport: wispTransport,
+        config: {
+            prefix: basePath + 'scramjet/',
+            scramjetPath: basePath + 'JS/scramjet.js',
+            injectPath: basePath + 'JS/controller.inject.js',
+            wasmPath: basePath + 'JS/scramjet.wasm.wasm',
+            virtualWasmPath: 'scramjet.wasm.js'
+        }
     });
 
-    scramjet.init();
-    // Dynamic path calculation for subfolder hosting compatibility
-    await navigator.serviceWorker.register(basePath + 'sw.js', { scope: basePath });
-    // Send the WISP URL to the service worker once it's ready
-    navigator.serviceWorker.ready.then((registration) => {
-        registration.active.postMessage({
-            type: "config",
-            wispurl: localStorage.getItem("proxServer") || _CONFIG.wispurl,
-        });
-    });
-});
+    await controller.wait();
+}
 
-const connection = new BareMux.BareMuxConnection(`${basePath}B/worker.js`);
+controllerReady = initScramjet();
+
 const store = {
     url: "https://",
-    wispurl: localStorage.getItem("proxServer") || _CONFIG.wispurl,
-    bareurl: _CONFIG?.bareurl || (location.protocol === "https:" ? "https" : "http") + "://" + location.host + "/bare/"
+    wispurl: getWispUrl()
 };
-connection.setTransport(`${basePath}Ep/index.mjs`, [{
-    wisp: store.wispurl
-}]);
 
 // Monitor WISP connection health
 setInterval(testWispHealth, 60000); // Check every minute
@@ -62,54 +70,80 @@ let activeTabId = null;
 let nextTabId = 1;
 let sortableInstance = null;
 
-function createTab(makeActive = true) {
-    const frame = scramjet.createFrame();
-    const tab = {
-        id: nextTabId++,
-        title: "Loading...",
-        url: "",
-        frame: frame,
-        favicon: "", // Start with empty favicon
-        loading: true,
-        progress: 10, // Start at 10%
-        faviconTimeout: null // Track favicon loading timeout
+function createFrameHandle(tab) {
+    let real = null;
+    return {
+        get real() { return real; },
+        get element() { return tab.element; },
+        go(url) {
+            tab.element.removeAttribute('srcdoc');
+            if (!real) {
+                real = controller.createFrame(tab.element, { plugins: [tab._urlWatcher] });
+            }
+            real.go(url);
+        },
+        back() { real?.back(); },
+        forward() { real?.forward(); },
+        reload() { real?.reload(); }
     };
+}
 
-    updateLoadingBar(tab);
+function createTab(makeActive = true) {
+    const element = document.createElement("iframe");
+    element.referrerPolicy = "no-referrer";
+    let tab;
 
-    frame.frame.src = `${basePath}NT.html`;
-
-    frame.addEventListener("urlchange", (e) => {
-        if (!e.url || e.url === "about:blank")
+    const urlWatcher = new $scramjetUtils.UrlWatcherPlugin((url) => {
+        if (!url || url === "about:blank" || !tab)
             return;
-        tab.url = e.url;
+        tab.url = url;
         tab.loading = true;
         tab.progress = 10;
         updateLoadingBar(tab);
         updateTabsUI();
         try {
-            tab.favicon = new URL(e.url).origin + '/favicon.ico';
+            tab.favicon = new URL(url).origin + '/favicon.ico';
         } catch (e) {/* ignore */
         }
         try {
             // Only access title if same-origin
-            if (isSameOrigin(e.url)) {
-                tab.title = frame.frame.contentWindow.document.title || new URL(e.url).hostname;
+            if (isSameOrigin(url)) {
+                tab.title = element.contentWindow.document.title || new URL(url).hostname;
             } else {
-                tab.title = new URL(e.url).hostname;
+                tab.title = new URL(url).hostname;
             }
         } catch (e) {
-            tab.title = new URL(e.url).hostname;
+            tab.title = new URL(url).hostname;
         }
         updateTabsUI();
         updateAddressBar();
-    }
-    );
-
-    // Monitor for connection errors to trigger WISP health check
-    frame.addEventListener("connectionerror", () => {
-        testWispHealth();
     });
+
+
+    tab = {
+        id: nextTabId++,
+        title: "Loading...",
+        url: "",
+        frame: null,
+        element: element,
+        _urlWatcher: urlWatcher,
+        favicon: "", // Start with empty favicon
+        loading: true,
+        progress: 10, // Start at 10%
+        faviconTimeout: null // Track favicon loading timeout
+    };
+    tab.frame = createFrameHandle(tab);
+
+    updateLoadingBar(tab);
+
+    fetch(`${getBasePath()}NT.html`)
+        .then((res) => res.text())
+        .then((html) => {
+            if (tab.url === "" && !tab.frame.real) {
+                element.srcdoc = html;
+            }
+        })
+        .catch(() => { });
 
     // Set favicon timeout - 2 seconds max for favicon changing
     if (tab.favicon) {
@@ -122,9 +156,9 @@ function createTab(makeActive = true) {
         }, 2000);
     }
 
-    frame.frame.addEventListener('load', () => {
+    element.addEventListener('load', () => {
         try {
-            const newTitle = frame.frame.contentWindow.document.title;
+            const newTitle = element.contentWindow.document.title;
             if (newTitle && tab.title !== newTitle) {
                 tab.title = newTitle;
                 tab.loading = false;
@@ -145,8 +179,8 @@ function createTab(makeActive = true) {
             updateLoadingBar(tab);
             updateTabsUI();
         }
-    }
-    );
+    });
+
     tabs.push(tab);
     if (makeActive) {
         activeTabId = tab.id;
@@ -160,11 +194,11 @@ function getActiveTab() {
 function switchTab(tabId) {
     if (activeTabId === tabId)
         return;
-    tabs.forEach((tab) => tab.frame.frame.classList.add("hidden"));
+    tabs.forEach((tab) => tab.element.classList.add("hidden"));
     activeTabId = tabId;
     const activeTab = getActiveTab();
     if (activeTab) {
-        activeTab.frame.frame.classList.remove("hidden");
+        activeTab.element.classList.remove("hidden");
     }
     updateTabsUI();
     updateAddressBar();
@@ -181,8 +215,8 @@ function closeTab(tabId) {
         clearTimeout(tabToRemove.faviconTimeout);
     }
 
-    if (tabToRemove.frame.frame.parentNode) {
-        tabToRemove.frame.frame.parentNode.removeChild(tabToRemove.frame.frame);
+    if (tabToRemove.element.parentNode) {
+        tabToRemove.element.parentNode.removeChild(tabToRemove.element);
     }
     tabs.splice(tabIndex, 1);
     if (activeTabId === tabId) {
@@ -192,7 +226,7 @@ function closeTab(tabId) {
         } else {
             activeTabId = null;
             const newTab = createTab(true);
-            document.getElementById("iframe-container").appendChild(newTab.frame.frame);
+            document.getElementById("iframe-container").appendChild(newTab.element);
         }
     }
     updateTabsUI();
@@ -244,7 +278,7 @@ function updateTabsUI() {
     newBtn.textContent = "+";
     newBtn.onclick = () => {
         const newTab = createTab(false);
-        document.getElementById("iframe-container").appendChild(newTab.frame.frame);
+        document.getElementById("iframe-container").appendChild(newTab.element);
         switchTab(newTab.id);
     }
         ;
@@ -286,12 +320,12 @@ function toggleDevTools() {
     const activeTab = getActiveTab();
     if (!activeTab)
         return;
-    const frameWindow = activeTab.frame.frame.contentWindow;
+    const frameWindow = activeTab.element.contentWindow;
     if (!frameWindow)
         return;
 
     // Check if the frame source is same-origin before accessing document
-    const frameSrc = activeTab.frame.frame.src;
+    const frameSrc = activeTab.element.src;
     if (!isSameOrigin(frameSrc)) {
         alert('Developer tools cannot be toggled for cross-origin content.');
         return;
@@ -347,12 +381,12 @@ async function initializeBrowser() {
     document.getElementById('open-new-window-btn').onclick = () => {
         const url = getActiveTab()?.url;
         if (url)
-            window.open(scramjet.encodeUrl(url));
+            window.open(`${getBasePath()}embed.html#${encodeURIComponent(url)}`, '_blank');
     }
         ;
     document.getElementById('devtools-btn').onclick = toggleDevTools;
     const initialTab = createTab(true);
-    document.getElementById("iframe-container").appendChild(initialTab.frame.frame);
+    document.getElementById("iframe-container").appendChild(initialTab.element);
     updateTabsUI();
     updateAddressBar();
 
@@ -472,7 +506,20 @@ function handleSubmit(url = null) {
 }
 
 window.addEventListener("load", async () => {
-    await initializeBrowser();
+    try {
+        await controllerReady;
+        await initializeBrowser();
+    } catch (error) {
+        console.error('Failed to start the proxy:', error);
+        const root = document.getElementById("app");
+        if (root) {
+            root.innerHTML = `<div style="padding:2rem;color:#fff;font-family:sans-serif">
+                <h2>Proxy failed to start</h2>
+                <p>${error.message}</p>
+                <p>Try reloading the page. If the problem persists, check the browser console.</p>
+            </div>`;
+        }
+    }
 }
 );
 
@@ -613,11 +660,12 @@ function applyWispSettings() {
         });
     }
 
-    // Update store and reconnect BareMux transports
+    // Update the active transport used by the controller
     store.wispurl = newWispUrl;
-    connection.setTransport(`${basePath}Ep/index.mjs`, [{
-        wisp: newWispUrl
-    }]);
+    if (controller) {
+        wispTransport = createTransport(newWispUrl);
+        controller.setTransport(wispTransport);
+    }
 
     // Update status
     updateWispStatus('success', 'WISP settings applied successfully!');
@@ -804,5 +852,3 @@ function updateLoadingBar(tab) {
         }
     }
 }
-
-module.exports = { addNewShortcutButton };
